@@ -1,0 +1,45 @@
+# Render Blueprint: one web service (API + website) and one Postgres database.
+# Deploy with Render Dashboard → New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: netportal
+    runtime: node
+    plan: starter # paid plan: always on (the expiry job runs in this process) and supports a disk
+    region: frankfurt # closest Render region to Nigeria
+    buildCommand: npm run render-build
+    preDeployCommand: npm run release # runs DB migrations + idempotent seed before each release
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: uploads
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: Africa/Lagos
+      - key: DATABASE_URL
+        fromDatabase:
+          name: netportal-db
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      # Asked for when the Blueprint is created; used to create the first super admin.
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: netportal-db
+    plan: basic-256mb
+    region: frankfurt
+    databaseName: netportal
+    user: netportal

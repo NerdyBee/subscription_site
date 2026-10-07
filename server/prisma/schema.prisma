@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  CUSTOMER
+}
+
+enum CustomerStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PENDING_VERIFICATION
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  POS
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String
+  phone         String?
+  passwordHash  String
+  role          Role           @default(CUSTOMER)
+  isActive      Boolean        @default(true)
+  tokenVersion  Int            @default(0)
+  lastLoginAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  customer      Customer?
+  notifications Notification[]
+  ticketReplies TicketMessage[]
+  auditLogs     AuditLog[]
+}
+
+model Office {
+  id        String     @id @default(cuid())
+  unit      String     @unique // e.g. "Suite B14"
+  floor     String?
+  block     String?
+  notes     String?
+  createdAt DateTime   @default(now())
+  customers Customer[]
+}
+
+model Customer {
+  id            String          @id @default(cuid())
+  seq           Int             @unique @default(autoincrement())
+  userId        String          @unique
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName   String
+  contactName   String
+  phone         String
+  whatsapp      String?
+  officeId      String?
+  office        Office?         @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  status        CustomerStatus  @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  subscriptions Subscription[]
+  invoices      Invoice[]
+  payments      Payment[]
+  tickets       SupportTicket[]
+  network       NetworkAccount?
+}
+
+model Plan {
+  id            String         @id @default(cuid())
+  name          String
+  description   String?
+  speed         String // e.g. "Up to 50 Mbps" — free text, shown to customers
+  durationDays  Int
+  priceKobo     Int
+  features      String[]
+  isActive      Boolean        @default(true)
+  isFeatured    Boolean        @default(false)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+  invoices      Invoice[]
+}
+
+model Subscription {
+  id         String             @id @default(cuid())
+  customerId String
+  customer   Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  planId     String
+  plan       Plan               @relation(fields: [planId], references: [id])
+  invoiceId  String?            @unique
+  invoice    Invoice?           @relation(fields: [invoiceId], references: [id])
+  status     SubscriptionStatus @default(ACTIVE)
+  startsAt   DateTime
+  expiresAt  DateTime
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([customerId, expiresAt])
+  @@index([status, expiresAt])
+}
+
+model Invoice {
+  id           String        @id @default(cuid())
+  seq          Int           @unique @default(autoincrement())
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  planId       String
+  plan         Plan          @relation(fields: [planId], references: [id])
+  amountKobo   Int
+  status       InvoiceStatus @default(UNPAID)
+  paidAt       DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  payments     Payment[]
+  subscription Subscription?
+
+  @@index([customerId, createdAt])
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amountKobo   Int
+  method       PaymentMethod @default(BANK_TRANSFER)
+  status       PaymentStatus @default(PENDING)
+  senderName   String?
+  senderBank   String?
+  transferRef  String?
+  proofPath    String?
+  note         String?
+  rejectReason String?
+  recordedById String? // set when an admin records a payment on the customer's behalf
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime      @default(now())
+
+  @@index([status, createdAt])
+}
+
+// One access account per customer on the network. In V1 the admin flips access on the
+// router by hand; `desiredEnabled` is what the subscription says and `enabled` is what the
+// admin has confirmed, so any mismatch shows up as a to-do in the admin portal.
+model NetworkAccount {
+  id             String    @id @default(cuid())
+  customerId     String    @unique
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  username       String    @unique
+  password       String
+  macAddresses   String[]
+  desiredEnabled Boolean   @default(false)
+  enabled        Boolean   @default(false)
+  lastSyncedAt   DateTime?
+  notes          String?
+  updatedAt      DateTime  @updatedAt
+}
+
+model SupportTicket {
+  id         String          @id @default(cuid())
+  seq        Int             @unique @default(autoincrement())
+  customerId String
+  customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  subject    String
+  status     TicketStatus    @default(OPEN)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  messages   TicketMessage[]
+}
+
+model TicketMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime      @default(now())
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  dedupeKey String?   @unique
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
