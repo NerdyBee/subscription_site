@@ -37,10 +37,10 @@ To automate this (V2), implement the `NetworkAdapter` interface in `server/src/n
 
 ## Deploy to Render
 
- is a Render Blueprint. It creates:
+`render.yaml` is a Render Blueprint. It creates:
 
-- **Web service ** (Frankfurt). One Node process serves the API and the built website and runs the expiry/reminder job.
-- **Postgres ** (Frankfurt), wired to  automatically.
+- **Web service `netportal`** (Frankfurt). One Node process serves the API and the built website and runs the expiry/reminder job.
+- **Postgres `netportal-db`** (Frankfurt), wired to `DATABASE_URL` automatically.
 
 Payment receipts are stored in the database, so no disk is needed.
 
@@ -48,17 +48,9 @@ Steps:
 
 1. Push this repo to GitHub (or GitLab/Bitbucket).
 2. In Render: **New → Blueprint**, then pick the repo.
-3. When asked, enter  and  (8+ characters). These become the first super admin. JWT secrets are generated for you.
-4. Apply. Each deploy runs . On every start, Unknown command: "start"
-
-
-Did you mean one of these?
-  npm star # Mark your favorite packages
-  npm stars # View packages marked as favorites
-  npm start # Start a package
-To see a list of supported npm commands, run:
-  npm help applies DB migrations and the idempotent seed, then starts the server.
-5. Open the  URL, log in at , and fill in **Admin → Settings** and **Admin → Packages**.
+3. When asked, enter `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` (8+ characters). These become the first super admin. JWT secrets are generated for you.
+4. Apply. Each deploy runs `npm run render-build`. On every start, `npm start` applies DB migrations and the idempotent seed, then starts the server.
+5. Open the `.onrender.com` URL, log in at `/login`, and fill in **Admin → Settings** and **Admin → Packages**.
 
 ### Free vs paid
 
@@ -67,7 +59,7 @@ The Blueprint starts on **free** plans for testing:
 - The free web service sleeps after about 15 minutes idle, and the next visit takes up to a minute. Expiry checks pause while it sleeps and catch up when it wakes. Customer dashboards always show the correct status regardless.
 - The free database expires after a limited time. Don't keep real customers on it.
 
-To go live, change  to  for the web service and  for the database in  (or upgrade in the dashboard). Upgrading the database in place keeps its data.
+To go live, change `plan: free` to `plan: starter` for the web service and `plan: basic-256mb` for the database in `render.yaml` (or upgrade in the dashboard). Upgrading the database in place keeps its data.
 
 Optional: add a custom domain under the web service's **Settings → Custom Domains**. Render provides HTTPS automatically.
 
@@ -75,7 +67,7 @@ Optional: add a custom domain under the web service's **Settings → Custom Doma
 
 ```bash
 npm run build
-NODE_ENV=production npm start   # Express serves the API and the built site on PORT
+NODE_ENV=production npm start   # migrates, seeds, then serves the API and the built site on PORT
 ```
 
-Put it behind HTTPS (the session cookie is `secure` in production), set `CLIENT_ORIGIN` to the public URL and `UPLOAD_DIR` to a persistent folder, and back up the database and the uploads folder (payment receipts).
+Put it behind HTTPS (the session cookie is `secure` in production), set `CLIENT_ORIGIN` to the public URL, and back up the database (it also holds the payment receipts).
