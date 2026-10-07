@@ -166,7 +166,8 @@ model Payment {
   senderName   String?
   senderBank   String?
   transferRef  String?
-  proofPath    String?
+  proofMime    String? // set when a receipt was uploaded; the bytes live in PaymentProof
+  proof        PaymentProof?
   note         String?
   rejectReason String?
   recordedById String? // set when an admin records a payment on the customer's behalf
@@ -175,6 +176,17 @@ model Payment {
   createdAt    DateTime      @default(now())
 
   @@index([status, createdAt])
+}
+
+// Uploaded transfer receipt. Kept in the database (not on disk) so it survives redeploys on hosts
+// without persistent storage, and is backed up with everything else. Separate table so listing
+// payments never loads the file bytes.
+model PaymentProof {
+  paymentId String   @id
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  mime      String
+  data      Bytes
+  createdAt DateTime @default(now())
 }
 
 // One access account per customer on the network. In V1 the admin flips access on the

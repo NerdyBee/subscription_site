@@ -54,7 +54,7 @@ export const paymentView = (p: Payment & { invoice?: Invoice & { plan?: Plan } }
   senderName: p.senderName,
   senderBank: p.senderBank,
   transferRef: p.transferRef,
-  hasProof: !!p.proofPath,
+  hasProof: !!p.proofMime,
   note: p.note,
   rejectReason: p.rejectReason,
   reviewedAt: p.reviewedAt,

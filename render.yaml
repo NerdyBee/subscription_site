@@ -1,19 +1,20 @@
 # Render Blueprint: one web service (API + website) and one Postgres database.
 # Deploy with Render Dashboard → New → Blueprint → pick this repo.
+#
+# Currently on FREE plans for testing. Limits to know:
+#   - The web service sleeps after ~15 min without visitors; the next visit takes up to a minute.
+#     Expiry checks pause while asleep and catch up on wake-up.
+#   - The free database expires after a limited time (see Render's docs); don't keep real data on it.
+# To go live, change `plan: free` to `plan: starter` (web) and `plan: basic-256mb` (database).
 services:
   - type: web
     name: netportal
     runtime: node
-    plan: starter # paid plan: always on (the expiry job runs in this process) and supports a disk
+    plan: free
     region: frankfurt # closest Render region to Nigeria
     buildCommand: npm run render-build
-    preDeployCommand: npm run release # runs DB migrations + idempotent seed before each release
-    startCommand: npm start
+    startCommand: npm start # runs DB migrations + idempotent seed, then starts the server
     healthCheckPath: /api/health
-    disk:
-      name: uploads
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "22"
@@ -29,8 +30,6 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
-      - key: UPLOAD_DIR
-        value: /var/data/uploads
       # Asked for when the Blueprint is created; used to create the first super admin.
       - key: SEED_ADMIN_EMAIL
         sync: false
@@ -39,7 +38,7 @@ services:
 
 databases:
   - name: netportal-db
-    plan: basic-256mb
+    plan: free
     region: frankfurt
     databaseName: netportal
     user: netportal

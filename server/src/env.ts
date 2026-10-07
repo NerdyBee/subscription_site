@@ -8,7 +8,6 @@ const schema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  UPLOAD_DIR: z.string().default('uploads'),
 });
 
 export const env = schema.parse(process.env);

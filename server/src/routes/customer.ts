@@ -132,7 +132,8 @@ customerRouter.post('/invoices/:id/payments', proofUpload.single('proof'), async
         senderBank: body.senderBank || null,
         transferRef: body.transferRef || null,
         note: body.note || null,
-        proofPath: req.file?.filename ?? null,
+        proofMime: req.file?.mimetype ?? null,
+        ...(req.file ? { proof: { create: { mime: req.file.mimetype, data: new Uint8Array(req.file.buffer) } } } : {}),
       },
     });
     await tx.invoice.update({ where: { id: invoice.id }, data: { status: 'PENDING_VERIFICATION' } });
