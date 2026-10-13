@@ -1,6 +1,6 @@
 import type { Customer, Invoice, Office, Payment, Plan, Subscription, SupportTicket, User } from '@prisma/client';
 import { prisma } from '../db';
-import { accountNo, DAY_MS, invoiceNo, ticketNo } from '../lib/format';
+import { accountNo, DAY_MS, invoiceNo, stringList, ticketNo } from '../lib/format';
 import { notFound } from '../lib/http';
 import { coverageEnd, currentSubscription } from './subscriptions';
 
@@ -13,7 +13,7 @@ export const planView = (p: Plan) => ({
   speed: p.speed,
   durationDays: p.durationDays,
   priceKobo: p.priceKobo,
-  features: p.features,
+  features: stringList(p.features),
   isActive: p.isActive,
   isFeatured: p.isFeatured,
   sortOrder: p.sortOrder,

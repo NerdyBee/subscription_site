@@ -61,7 +61,12 @@ export async function ensureNetworkAccount(customerId: string) {
   if (existing) return existing;
   const customer = await prisma.customer.findUniqueOrThrow({ where: { id: customerId } });
   return prisma.networkAccount.create({
-    data: { customerId, username: accountNo(customer.seq).replace('-', '').toLowerCase(), password: randomPassword() },
+    data: {
+      customerId,
+      username: accountNo(customer.seq).replace('-', '').toLowerCase(),
+      password: randomPassword(),
+      macAddresses: [],
+    },
   });
 }
 

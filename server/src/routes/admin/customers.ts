@@ -26,11 +26,11 @@ customersRouter.get('/', async (req, res) => {
     where: q
       ? {
           OR: [
-            { companyName: { contains: q, mode: 'insensitive' } },
-            { contactName: { contains: q, mode: 'insensitive' } },
+            { companyName: { contains: q } },
+            { contactName: { contains: q } },
             { phone: { contains: q } },
-            { user: { email: { contains: q, mode: 'insensitive' } } },
-            { office: { unit: { contains: q, mode: 'insensitive' } } },
+            { user: { email: { contains: q } } },
+            { office: { unit: { contains: q } } },
             ...(/^\d+$/.test(q.replace(/^net-?/i, '')) ? [{ seq: Number(q.replace(/^net-?/i, '')) }] : []),
           ],
         }

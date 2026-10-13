@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { audit } from '../../lib/audit';
 import { requireRole } from '../../lib/auth';
-import { accountNo } from '../../lib/format';
+import { accountNo, stringList } from '../../lib/format';
 import { badRequest, notFound } from '../../lib/http';
 import { getSettings, saveSettings, settingsSchema } from '../../lib/settings';
 import { getNetworkAdapter } from '../../network/adapter';
@@ -36,7 +36,7 @@ opsRouter.get('/network', async (req, res) => {
         id: a.id,
         username: a.username,
         password: a.password,
-        macAddresses: a.macAddresses,
+        macAddresses: stringList(a.macAddresses),
         enabled: a.enabled,
         desiredEnabled: a.desiredEnabled,
         lastSyncedAt: a.lastSyncedAt,

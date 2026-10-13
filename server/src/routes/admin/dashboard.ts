@@ -29,7 +29,9 @@ dashboardRouter.get('/stats', async (_req, res) => {
     prisma.payment.count({ where: { status: 'PENDING' } }),
     prisma.invoice.count({ where: { status: 'UNPAID' } }),
     prisma.supportTicket.count({ where: { status: { in: ['OPEN', 'IN_PROGRESS'] } } }),
-    prisma.$queryRaw<[{ n: bigint }]>`SELECT COUNT(*) AS n FROM "NetworkAccount" WHERE "desiredEnabled" <> "enabled"`,
+    prisma.networkAccount.count({
+      where: { OR: [{ desiredEnabled: true, enabled: false }, { desiredEnabled: false, enabled: true }] },
+    }),
     prisma.payment.findMany({
       orderBy: { createdAt: 'desc' },
       take: 8,
@@ -56,7 +58,7 @@ dashboardRouter.get('/stats', async (_req, res) => {
     pendingPayments,
     unpaidInvoices,
     openTickets,
-    networkTodo: Number(networkTodo[0].n),
+    networkTodo,
     recentPayments: recentPayments.map((p) => ({
       ...paymentView(p),
       customer: { id: p.customer.id, companyName: p.customer.companyName, accountNo: accountNo(p.customer.seq) },

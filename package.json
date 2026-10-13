@@ -6,14 +6,13 @@
     "setup": "npm install && npm --prefix server run db:deploy && npm --prefix server run seed",
     "dev": "concurrently -n api,web -c blue,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "build": "npm --prefix client run build && npm --prefix server run build",
-    "render-build": "npm install --include=dev && npm run build",
-    "release": "npm --prefix server run db:deploy && npm --prefix server run seed",
-    "start": "npm run release && npm --prefix server start"
+    "package": "npm run build && node scripts/package.mjs",
+    "start": "npm --prefix server start"
   },
   "devDependencies": {
     "concurrently": "^10.0.5"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=20"
   }
 }

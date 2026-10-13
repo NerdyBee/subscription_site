@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -52,17 +52,17 @@ enum TicketStatus {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
+  id            String          @id @default(cuid())
+  email         String          @unique
   name          String
   phone         String?
   passwordHash  String
-  role          Role           @default(CUSTOMER)
-  isActive      Boolean        @default(true)
-  tokenVersion  Int            @default(0)
+  role          Role            @default(CUSTOMER)
+  isActive      Boolean         @default(true)
+  tokenVersion  Int             @default(0)
   lastLoginAt   DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   customer      Customer?
   notifications Notification[]
   ticketReplies TicketMessage[]
@@ -74,7 +74,7 @@ model Office {
   unit      String     @unique // e.g. "Suite B14"
   floor     String?
   block     String?
-  notes     String?
+  notes     String?    @db.Text
   createdAt DateTime   @default(now())
   customers Customer[]
 }
@@ -91,7 +91,7 @@ model Customer {
   officeId      String?
   office        Office?         @relation(fields: [officeId], references: [id], onDelete: SetNull)
   status        CustomerStatus  @default(ACTIVE)
-  notes         String?
+  notes         String?         @db.Text
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   subscriptions Subscription[]
@@ -104,11 +104,11 @@ model Customer {
 model Plan {
   id            String         @id @default(cuid())
   name          String
-  description   String?
+  description   String?        @db.Text
   speed         String // e.g. "Up to 50 Mbps" — free text, shown to customers
   durationDays  Int
   priceKobo     Int
-  features      String[]
+  features      Json // string[]
   isActive      Boolean        @default(true)
   isFeatured    Boolean        @default(false)
   sortOrder     Int            @default(0)
@@ -168,8 +168,8 @@ model Payment {
   transferRef  String?
   proofMime    String? // set when a receipt was uploaded; the bytes live in PaymentProof
   proof        PaymentProof?
-  note         String?
-  rejectReason String?
+  note         String?       @db.Text
+  rejectReason String?       @db.Text
   recordedById String? // set when an admin records a payment on the customer's behalf
   reviewedById String?
   reviewedAt   DateTime?
@@ -185,7 +185,7 @@ model PaymentProof {
   paymentId String   @id
   payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   mime      String
-  data      Bytes
+  data      Bytes    @db.MediumBlob // receipts are capped at 5 MB
   createdAt DateTime @default(now())
 }
 
@@ -198,11 +198,11 @@ model NetworkAccount {
   customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   username       String    @unique
   password       String
-  macAddresses   String[]
+  macAddresses   Json // string[]
   desiredEnabled Boolean   @default(false)
   enabled        Boolean   @default(false)
   lastSyncedAt   DateTime?
-  notes          String?
+  notes          String?   @db.Text
   updatedAt      DateTime  @updatedAt
 }
 
@@ -224,7 +224,7 @@ model TicketMessage {
   ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   authorId  String
   author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  body      String
+  body      String        @db.Text
   createdAt DateTime      @default(now())
 }
 
@@ -233,7 +233,7 @@ model Notification {
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
-  body      String
+  body      String    @db.Text
   dedupeKey String?   @unique
   readAt    DateTime?
   createdAt DateTime  @default(now())

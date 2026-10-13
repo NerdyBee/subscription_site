@@ -6,8 +6,10 @@ export async function runSubscriptionJobs() {
     const expired = await expireDueSubscriptions();
     const reminders = await sendExpiryReminders();
     if (expired || reminders) console.log(`[jobs] expired=${expired} reminders=${reminders}`);
+    return { ok: true, expired, reminders };
   } catch (err) {
     console.error('[jobs] failed', err);
+    return { ok: false, expired: 0, reminders: 0 };
   }
 }
 

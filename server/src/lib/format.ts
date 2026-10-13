@@ -5,6 +5,9 @@ export const ticketNo = (seq: number) => `TKT-${String(seq).padStart(5, '0')}`;
 export const naira = (kobo: number) =>
   `₦${(kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
+/** JSON column that holds a list of strings (MySQL has no array columns). */
+export const stringList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const addDays = (d: Date, days: number) => new Date(d.getTime() + days * DAY_MS);
 
