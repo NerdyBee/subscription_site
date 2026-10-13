@@ -1,64 +1,48 @@
-// Assembles the upload package for shared hosting (cPanel "Setup Node.js App").
-// Run via `npm run package`, which builds first. Output:
-//   deploy/netportal/      the folder to upload as the Node.js app root
-//   deploy/netportal.zip   the same folder zipped, for cPanel's File Manager
+// Assembles the upload package for PHP shared hosting (cPanel). Run via `npm run package`,
+// which builds the website first. Output:
+//   deploy/public_html/      upload the CONTENTS of this folder into your site's document root
+//   deploy/netportal.zip     the same contents zipped, for cPanel's File Manager → Extract
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const server = path.join(root, 'server');
 const outDir = path.join(root, 'deploy');
-const app = path.join(outDir, 'netportal');
+const site = path.join(outDir, 'public_html');
 
-for (const required of ['server/dist/index.js', 'client/dist/index.html']) {
-  if (!fs.existsSync(path.join(root, required))) throw new Error(`Missing ${required}: run "npm run build" first`);
-}
+if (!fs.existsSync(path.join(root, 'client/dist/index.html'))) throw new Error('Missing client/dist: run "npm run build" first');
 
 fs.rmSync(outDir, { recursive: true, force: true });
-fs.mkdirSync(app, { recursive: true });
+fs.mkdirSync(site, { recursive: true });
 
-const copy = (from, to) => fs.cpSync(from, path.join(app, to), { recursive: true });
-copy(path.join(server, 'dist'), 'dist');
-copy(path.join(server, 'prisma'), 'prisma');
-copy(path.join(root, 'client', 'dist'), 'public');
-copy(path.join(server, 'package-lock.json'), 'package-lock.json');
-copy(path.join(server, '.env.example'), '.env.example');
+// The built website (includes the SPA .htaccess from client/public).
+fs.cpSync(path.join(root, 'client/dist'), site, { recursive: true });
 
-// Runtime-only manifest: the host installs dependencies, never builds.
-const pkg = JSON.parse(fs.readFileSync(path.join(server, 'package.json'), 'utf8'));
-const runtime = {
-  name: pkg.name,
-  version: pkg.version,
-  private: true,
-  main: 'app.js',
-  scripts: { start: 'node app.js', postinstall: 'prisma generate' },
-  engines: pkg.engines,
-  dependencies: pkg.dependencies,
-};
-fs.writeFileSync(path.join(app, 'package.json'), JSON.stringify(runtime, null, 2) + '\n');
-
-// cPanel defaults the startup file to app.js.
-fs.writeFileSync(path.join(app, 'app.js'), "require('./dist/index.js');\n");
+// The PHP API, minus local-only files. config.php is created on the server from config.sample.php.
+const skip = new Set(['config.php']);
+fs.cpSync(path.join(root, 'api'), path.join(site, 'api'), {
+  recursive: true,
+  filter: (src) => !skip.has(path.basename(src)),
+});
 
 const zip = path.join(outDir, 'netportal.zip');
 const zipTools =
   process.platform === 'win32'
     ? [
         // Windows' own bsdtar writes zips with -a (Git Bash's GNU tar on PATH can't).
-        [path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'), ['-a', '-c', '-f', 'netportal.zip', 'netportal']],
-        ['powershell', ['-NoProfile', '-Command', 'Compress-Archive -Path netportal -DestinationPath netportal.zip -Force']],
+        [path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'), ['-a', '-c', '-f', zip, '-C', site, '.']],
+        ['powershell', ['-NoProfile', '-Command', `Compress-Archive -Path '${site}\\*' -DestinationPath '${zip}' -Force`]],
       ]
-    : [['zip', ['-qr', 'netportal.zip', 'netportal']]];
-const zipped = zipTools.some(([cmd, args]) => {
+    : [['zip', ['-qr', zip, '.'], { cwd: site }]];
+const zipped = zipTools.some(([cmd, args, opts]) => {
   try {
-    execFileSync(cmd, args, { cwd: outDir, stdio: 'inherit' });
+    execFileSync(cmd, args, { stdio: 'inherit', ...opts });
     return fs.existsSync(zip);
   } catch {
     return false;
   }
 });
-if (!zipped) console.warn('Could not create a zip; upload the deploy/netportal folder instead.');
+if (!zipped) console.warn('Could not create a zip; upload the deploy/public_html folder contents instead.');
 
-console.log(`\nUpload package ready:\n  ${app}\n  ${fs.existsSync(zip) ? zip : '(no zip)'}`);
+console.log(`\nUpload package ready:\n  ${site}\n  ${fs.existsSync(zip) ? zip : '(no zip)'}`);

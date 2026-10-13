@@ -2,12 +2,11 @@
   "name": "netportal",
   "private": true,
   "scripts": {
-    "postinstall": "npm --prefix server install --include=dev && npm --prefix client install --include=dev",
-    "setup": "npm install && npm --prefix server run db:deploy && npm --prefix server run seed",
-    "dev": "concurrently -n api,web -c blue,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
-    "build": "npm --prefix client run build && npm --prefix server run build",
+    "postinstall": "npm --prefix client install --include=dev",
+    "dev": "concurrently -n api,web -c blue,green \"php -S 127.0.0.1:8787 api/index.php\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build",
     "package": "npm run build && node scripts/package.mjs",
-    "start": "npm --prefix server start"
+    "lint": "node scripts/lint-php.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.5"

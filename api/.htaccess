@@ -1,0 +1,25 @@
+# Every /api/* request goes to index.php, the front controller. Because nothing else in this
+# folder is served directly, app/, routes/, migrations/ and config.php are never exposed.
+Options -Indexes -MultiViews
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Pass the Authorization header through to PHP (CGI/FastCGI setups drop it otherwise).
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  RewriteRule ^index\.php$ - [L]
+  RewriteRule ^ index.php [L]
+</IfModule>
+
+# Belt and braces in case mod_rewrite is missing: still refuse the private files.
+<FilesMatch "^(config(\.sample)?\.php|\.user\.ini|.*\.sql)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>

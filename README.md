@@ -6,20 +6,21 @@ Subscription and customer-account portal for a Wi-Fi service sold to offices in 
 - **Customer portal** (`/account`): subscription status and days remaining, buy/renew a package, pay by bank transfer and upload the receipt, receipts, Wi-Fi login, support tickets, notifications
 - **Admin portal** (`/admin`): overview and revenue, confirm or reject transfers, customers (record cash/transfer payments, add free days, change plan, suspend, reset password), network access to-do list, subscriptions, invoices, packages, offices, support, settings (branding, bank accounts, WhatsApp, reminder days), staff, activity log
 
-Stack: React + TypeScript + Vite + Tailwind (`client/`), Node + Express + TypeScript + Prisma (`server/`), MySQL (or MariaDB).
+Stack: React + TypeScript + Vite + Tailwind website (`client/`, built to static files), plain PHP 8.1+ API with no Composer dependencies (`api/`), MySQL 5.7+ or MariaDB 10.3+. It runs on ordinary PHP shared hosting.
 
 ## Run locally
 
-Needs Node 20+ and a MySQL server.
+Needs PHP 8.1+ (with `pdo_mysql`), a MySQL server and Node 20+ (Node is only used to build the website).
 
 ```bash
-cp server/.env.example server/.env   # set DATABASE_URL, JWT secrets; uncomment CLIENT_ORIGIN; set NODE_ENV=development
-npm install                          # also installs server/ and client/
-npm run setup                        # applies migrations and seeds
-npm run dev                          # API on :4000, site on http://localhost:5173
+cp api/config.sample.php api/config.php   # set the database, two JWT secrets, a seed admin; env => 'development'
+npm install                               # also installs client/
+npm run dev                               # PHP API on :8787, site on http://localhost:5173
 ```
 
-Seeding creates the first super admin from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (in development, defaults to `admin@example.com` / `ChangeMe123!`). Change that password straight away under **Admin → My password**, then fill in **Admin → Settings** (name, complex, bank accounts, WhatsApp number) and **Admin → Packages** (prices).
+The database tables, the first super admin (from `seed_admin_email` / `seed_admin_password`), starter packages and default settings are created automatically on the first request. Log in at `/login`, change the password under **Admin → My password**, then fill in **Admin → Settings** (name, complex, bank accounts, WhatsApp number) and **Admin → Packages** (prices).
+
+`npm run lint` syntax-checks the PHP files.
 
 ## How payment works (V1)
 
@@ -29,17 +30,15 @@ Seeding creates the first super admin from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASS
 4. The admin checks the bank account and taps **Confirm** under **Payments**. The subscription starts right away. If the customer renewed early, the new period is added after the current one ends.
 5. Cash or direct payments can be recorded from the customer's page.
 
-A background job runs every 10 minutes. It expires finished subscriptions and sends reminders before expiry (7/3/1 days by default, set in Settings).
+Every 10 minutes, finished subscriptions are expired and reminders are sent before expiry (7/3/1 days by default, set in Settings). A cPanel cron job triggers this; normal site traffic triggers it too as a fallback.
 
 ## Network access
 
 Each customer gets a Wi-Fi/hotspot username and password. In V1 the router is controlled by hand. When a payment is confirmed or a subscription expires, the account appears under **Admin → Network access → To do** ("turn ON" / "turn OFF"). After making the change on the router, the admin confirms it in the portal.
 
-To automate this (V2), implement the `NetworkAdapter` interface in `server/src/network/adapter.ts` for the equipment in use (MikroTik RouterOS API/hotspot, RADIUS, UniFi, ...) and register it. `syncAccess()` already calls it whenever access should change.
+To automate this (V2), implement the `NetworkAdapter` interface in `api/app/Services.php` for the equipment in use (MikroTik RouterOS API/hotspot, RADIUS, UniFi, ...) and return it from `Network::adapter()`. `Subscriptions::syncAccess()` already calls it whenever access should change.
 
-## Deploy to shared hosting (cPanel)
-
-Works on any cPanel host with **Setup Node.js App** (Node 20 or newer) and MySQL/MariaDB.
+## Deploy to PHP shared hosting (cPanel)
 
 ### 1. Build the upload package (on your computer)
 
@@ -47,55 +46,49 @@ Works on any cPanel host with **Setup Node.js App** (Node 20 or newer) and MySQL
 npm run package
 ```
 
-This produces `deploy/netportal.zip`: the compiled server, the built website, the database migrations and a runtime-only `package.json`. Nothing gets built on the host.
+This produces `deploy/netportal.zip`. It contains the built website, the `api/` folder and the `.htaccess` rules. Nothing gets built on the server.
 
-### 2. Create the database (cPanel → MySQL® Databases)
+### 2. Check PHP (cPanel → Select PHP Version, or MultiPHP Manager)
 
-1. Create a database, e.g. `netportal` (cPanel prefixes it: `cpuser_netportal`).
-2. Create a user with a strong password and add it to the database with **All Privileges**.
+Choose **PHP 8.1 or newer** for the domain and make sure the `pdo_mysql` extension is ticked. `mbstring` and `fileinfo` are recommended; they're usually on already.
 
-### 3. Upload the app (cPanel → File Manager)
+### 3. Create the database (cPanel → MySQL® Databases)
 
-Upload `netportal.zip` to your home folder (not inside `public_html`) and **Extract** it. You get `~/netportal/`.
+1. Create a database, e.g. `netportal`. cPanel adds your account prefix: `cpuser_netportal`.
+2. Create a user with a strong password.
+3. Add the user to the database with **All Privileges**.
 
-### 4. Create the Node.js app (cPanel → Setup Node.js App → Create Application)
+### 4. Upload (cPanel → File Manager)
 
-- **Node.js version**: 20 or newer
-- **Application mode**: Production
-- **Application root**: `netportal`
-- **Application URL**: your domain or subdomain (e.g. `internet.yourdomain.com`). Use the root of a domain or subdomain, not a sub-path like `/portal`.
-- **Application startup file**: `app.js`
+1. Open the document root of the domain or subdomain the portal will live on (e.g. `public_html`, or the subdomain's folder). Use the root of a domain or subdomain, not a sub-folder like `/portal`.
+2. Upload `netportal.zip` there and **Extract** it. You should see `index.html`, `assets/`, `api/` and `.htaccess`. Turn on **Settings → Show Hidden Files** to see `.htaccess`.
+3. In `api/`, copy `config.sample.php` to `config.php` and **Edit** it:
+   - `db`: the database name, user and password from step 3 (`host` stays `localhost`)
+   - `jwt_access_secret` / `jwt_refresh_secret`: two different random strings, 32+ characters each
+   - `cron_secret`: another random string
+   - `seed_admin_email` / `seed_admin_password`: the first admin login (8+ character password)
 
-Click **Create**, then add these **Environment variables** (or copy `.env.example` to `.env` in `~/netportal` and fill it in):
+### 5. Open the site
 
-| Name | Value |
-|---|---|
-| `DATABASE_URL` | `mysql://cpuser_dbuser:PASSWORD@localhost:3306/cpuser_netportal` (URL-encode special characters in the password) |
-| `NODE_ENV` | `production` |
-| `TZ` | `Africa/Lagos` |
-| `JWT_ACCESS_SECRET` | a long random string (32+ characters) |
-| `JWT_REFRESH_SECRET` | a different long random string |
-| `SEED_ADMIN_EMAIL` | the admin's login email |
-| `SEED_ADMIN_PASSWORD` | the admin's password (8+ characters) |
-| `CRON_SECRET` | another random string |
+Visit `https://your-domain/api/health`. It should show `{"ok":true}`. The first request creates the tables, the admin, starter packages and settings. Then open the site, log in at `/login`, and fill in **Admin → Settings** and **Admin → Packages**. You can blank the seed password in `config.php` afterwards.
 
-Then click **Run NPM Install**, and when it finishes, **Restart**.
+### 6. Schedule the expiry checks (cPanel → Cron Jobs)
 
-On the first start the app creates its database tables, the super admin, starter packages and default settings. Open the site, log in at `/login`, and fill in **Admin → Settings** and **Admin → Packages**.
-
-### 5. Schedule the expiry checks (cPanel → Cron Jobs)
-
-Shared hosting stops idle apps, so add a cron job (every 10 minutes is fine) that calls the app:
+Add a cron job every 10 minutes (`*/10 * * * *`) with either command:
 
 ```
-*/10 * * * * curl -s "https://internet.yourdomain.com/api/cron?key=YOUR_CRON_SECRET" > /dev/null
+curl -s "https://your-domain/api/cron?key=YOUR_CRON_SECRET" > /dev/null
 ```
 
-This expires finished subscriptions, flags their Wi-Fi access for switching off, and sends expiry reminders.
+```
+php -q /home/CPANEL_USER/public_html/api/cron.php > /dev/null
+```
+
+If you skip this, the checks still run when people use the site, but the cron job makes them run on time.
 
 ### Updating
 
-Run `npm run package` again, upload and extract the new zip over `~/netportal` (your `.env` is kept), click **Run NPM Install** if dependencies changed, then **Restart**. New database migrations are applied automatically on start.
+Run `npm run package`, upload the new zip and extract it over the old files. `api/config.php` isn't in the zip, so it's kept. New database migrations in `api/migrations/` are applied automatically on the next request.
 
 ### Backups
 
@@ -103,6 +96,8 @@ Everything, including uploaded payment receipts, is in the MySQL database. Back 
 
 ### Troubleshooting
 
-- **App doesn't start**: check `stderr.log` in `~/netportal` (or the log link in Setup Node.js App). A missing or wrong `DATABASE_URL` is the most common cause.
-- **"No super admin yet" in the log**: set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`, then restart.
-- **Receipt upload fails on large files**: the host's MySQL `max_allowed_packet` may be below 5 MB. Ask the host to raise it, or customers can send smaller screenshots.
+- **`/api/health` shows an error about `config.php`**: create `api/config.php` from `config.sample.php` (step 4).
+- **"Something went wrong"**: set `'env' => 'development'` in `config.php` to see the real error, then set it back. PHP's `error_log` file in `api/` (or cPanel → Errors) also has details.
+- **Pages other than the home page show "Not Found"**: the `.htaccess` file wasn't uploaded, or the host doesn't allow `.htaccess` rewrites (ask them to enable `mod_rewrite` / `AllowOverride`).
+- **Logged out on every click / "Session expired"**: the host is stripping the `Authorization` header. `api/.htaccess` already passes it through; if it persists, ask the host to enable `CGIPassAuth`.
+- **Receipt upload says the file is too large**: `api/.user.ini` raises PHP's upload limit to 6 MB. If the host ignores it, raise `upload_max_filesize` / `post_max_size` in cPanel → **Select PHP Version → Options**. MySQL's `max_allowed_packet` must also be above the file size (the host's default is usually fine).
